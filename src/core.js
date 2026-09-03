@@ -147,6 +147,28 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
+// 北京时间部件（date=YYYY-MM-DD，hh/mm 为北京时区时分）
+function beijingParts(d) {
+  const b = new Date(d.getTime() + 8 * 3600000);
+  const p = (n) => String(n).padStart(2, '0');
+  return {
+    date: `${b.getUTCFullYear()}-${p(b.getUTCMonth() + 1)}-${p(b.getUTCDate())}`,
+    hh: b.getUTCHours(),
+    mm: b.getUTCMinutes(),
+  };
+}
+
+// 从转发/消息文本里宽松提取提示信息（金额/订单号），识别不到不返回
+function extractHints(text) {
+  const s = String(text || '');
+  const hints = {};
+  const cur = s.match(/(?:USD|CNY|EUR|GBP|\$|¥|€|£)\s*[\d,]+(?:\.\d{1,2})?/i);
+  if (cur) hints.amount = cur[0];
+  const ono = s.match(/(?:订单号|单号|PO|Order\s*No)[:\s#]*([A-Za-z0-9-]+)/i);
+  if (ono) hints.orderNo = ono[1];
+  return hints;
+}
+
 // 显示时间：默认按北京时间（UTC+8）输出，避免 Vercel 服务器 UTC 时区导致显示差 8 小时
 function fmtDateTime(d, tzOffsetHours = 8) {
   const dt = new Date(d);
@@ -187,4 +209,6 @@ module.exports = {
   escapeHtml,
   fmtDateTime,
   generateCode,
+  beijingParts,
+  extractHints,
 };

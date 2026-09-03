@@ -82,6 +82,7 @@ function createBot() {
           `1️⃣ 记客户：<code>/customer 添加 Lily #VIP 美国站大客户</code>\n` +
           `2️⃣ 记订单：<code>/order 添加 Lily 陶瓷马克杯×120 USD 2400</code>\n` +
           `3️⃣ 设跟进：<code>/remind Lily 3天 催款</code>\n\n` +
+          `✨ <b>小技巧</b>：把客户消息直接<b>转发</b>给我，自动归档到客户资料卡；每天 09:00 我会自动推送今日待办。\n\n` +
           `查看全部命令：<code>/help</code>`,
         {
           parse_mode: 'HTML',
@@ -111,6 +112,9 @@ function createBot() {
   async function sendHelp(ctx) {
     await ctx.reply(
       `<b>📖 命令清单</b>\n\n` +
+        `📥 <b>快捷操作</b>\n` +
+        `转发客户消息给我 → 自动归档\n` +
+        `<code>/customer 名字</code> 查看客户资料卡\n\n` +
         `👤 <b>客户</b>\n` +
         `<code>/customer 添加 名字 #标签 备注</code>\n` +
         `<code>/tag 名字 #标签…</code>\n` +
@@ -138,18 +142,93 @@ function createBot() {
   }
   bot.help((ctx) => sendHelp(ctx));
 
+  // ---- 转发即归档 / 随手记：保存消息并给出归档按钮 ----
+  async function saveTimelineMessage(ctx, kind, text) {
+    try {
+      const msg = await db.addMessage(ctx.from.id, { customerId: null, text, kind });
+      const recent = await db.listRecentCustomers(ctx.from.id, 3);
+      const kb = recent.map((c) => [Markup.button.callback(`归档到 ${c.name}`, 'arc:' + msg.id + ':' + c.id)]);
+      kb.push([Markup.button.callback('暂不归档', 'arc:' + msg.id + ':no')]);
+      const hints = core.extractHints(text);
+      let hintLine = '';
+      if (hints.amount || hints.orderNo) {
+        hintLine = '\n🔍 识别到：' + [hints.amount, hints.orderNo ? '单号 ' + hints.orderNo : ''].filter(Boolean).join('、');
+      }
+      await ctx.reply(`📥 已保存客户消息${hintLine}\n\n归档到哪个客户？`, {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard(kb),
+      });
+    } catch (e) {
+      console.error('saveTimelineMessage', e);
+      await ctx.reply('保存失败：' + esc(e.message)).catch(() => {});
+    }
+  }
+
+  // ---- 客户资料卡：聚合标签/备注/订单/消息/跟进 ----
+  async function sendCustomerCard(ctx, cust) {
+    const [orders, msgs, reminders] = await Promise.all([
+      db.listOrdersByCustomer(ctx.from.id, cust.name),
+      db.listMessages(ctx.from.id, { customerId: cust.id, limit: 5 }),
+      db.listReminders(ctx.from.id),
+    ]);
+    const rms = reminders.filter((r) => (r.customer_name || '').toLowerCase() === cust.name.toLowerCase());
+    const tags = (cust.tags || []).map((t) => '#' + esc(t)).join(' ');
+    let s = `👤 <b>${esc(cust.name)}</b>\n`;
+    if (tags) s += `标签：${tags}\n`;
+    if (cust.note) s += `备注：${esc(cust.note)}\n`;
+    const total = orders.reduce((a, o) => a + Number(o.amount || 0), 0);
+    s += `\n📦 订单 ${orders.length} 笔｜累计 ${core.fmtAmount(total, 'USD')}`;
+    if (orders.length) {
+      s +=
+        '\n' +
+        orders
+          .slice(0, 5)
+          .map((o) => `  ${esc(o.order_no)} ${esc(o.product)} ${core.fmtAmount(o.amount, o.currency)} · ${esc(o.status)}`)
+          .join('\n');
+    }
+    if (msgs.length) {
+      s +=
+        `\n\n💬 最近消息 ${msgs.length}\n` +
+        msgs
+          .slice(0, 3)
+          .map((m) => `  ${core.fmtDateTime(m.created_at)} ${esc((m.text || '').slice(0, 36))}`)
+          .join('\n');
+    }
+    if (rms.length) {
+      s +=
+        `\n\n⏰ 跟进中 ${rms.length}\n` +
+        rms
+          .slice(0, 3)
+          .map((r) => `  ${core.fmtDateTime(r.remind_at)} ${esc(r.content)}`)
+          .join('\n');
+    }
+    await ctx.reply(s, {
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('📦 全部订单', 'ord:' + cust.id), Markup.button.callback('💬 全部消息', 'msg:' + cust.id)],
+      ]),
+    });
+  }
+
   // ---- 客户 ----
   bot.command('customer', async (ctx) => {
     try {
       const text = payload(ctx);
       if (!text) {
         return ctx.reply(
-          '用法：<code>/customer 添加 名字 #标签 备注</code>\n例：<code>/customer 添加 Lily #VIP 美国站大客户</code>',
+          '用法：\n<code>/customer 添加 名字 #标签 备注</code> 新建客户\n<code>/customer 名字</code> 查看客户资料卡',
           { parse_mode: 'HTML' }
         );
       }
       if (!/^添加/.test(text)) {
-        return ctx.reply('请以"添加"开头：<code>/customer 添加 …</code>', { parse_mode: 'HTML' });
+        // 查看客户资料卡
+        const cust = await db.getCustomerByName(ctx.from.id, text.trim());
+        if (!cust) {
+          return ctx.reply(`没有找到客户 <b>${esc(text.trim())}</b>。\n用 <code>/customer 添加 …</code> 新建。`, {
+            parse_mode: 'HTML',
+          });
+        }
+        return sendCustomerCard(ctx, cust);
       }
       const parsed = core.parseCustomerAdd(text);
       if (!parsed) {
@@ -637,14 +716,81 @@ function createBot() {
   bot.on('pre_checkout_query', (ctx) => payments.onPreCheckout(ctx));
   bot.on('successful_payment', (ctx) => payments.onSuccessfulPayment(ctx));
 
-  // 兜底
-  bot.on('message', (ctx) => {
-    if (ctx.chat && ctx.chat.type === 'private' && ctx.message && ctx.message.text) {
-      const t = ctx.message.text;
-      if (!t.startsWith('/')) {
-        return ctx.reply('发送 <code>/help</code> 查看命令清单。', { parse_mode: 'HTML' });
+  // ---- 归档回调 ----
+  bot.action(/^arc:(\d+):(no|\d+)$/, async (ctx) => {
+    try {
+      const msgId = Number(ctx.match[1]);
+      const target = ctx.match[2];
+      if (target === 'no') {
+        await ctx.answerCbQuery('已保留为未归档记录');
+        await ctx.editMessageText('📥 已保存（未归档）。转发更多消息即可继续记录。').catch(() => {});
+        return;
       }
+      const cust = await db.getCustomerById(ctx.from.id, Number(target));
+      if (!cust) {
+        return ctx.answerCbQuery('客户不存在');
+      }
+      await db.linkMessageToCustomer(msgId, Number(target));
+      await ctx.answerCbQuery('已归入 ' + cust.name);
+      await ctx
+        .editMessageText(`📥 已归档到 <b>${esc(cust.name)}</b>。用 <code>/customer ${esc(cust.name)}</code> 查看资料卡。`, {
+          parse_mode: 'HTML',
+        })
+        .catch(() => {});
+    } catch (e) {
+      console.error('arc', e);
+      await ctx.answerCbQuery('操作失败').catch(() => {});
+      await ctx.editMessageText('操作失败：' + esc(e.message)).catch(() => {});
     }
+  });
+
+  // ---- 客户资料卡展开 ----
+  bot.action(/^ord:(\d+)$/, async (ctx) => {
+    try {
+      const cust = await db.getCustomerById(ctx.from.id, Number(ctx.match[1]));
+      if (!cust) return ctx.answerCbQuery('客户不存在');
+      const orders = await db.listOrdersByCustomer(ctx.from.id, cust.name);
+      await ctx.answerCbQuery();
+      if (!orders.length) {
+        return ctx.reply(`${esc(cust.name)} 暂无订单。用 <code>/order 添加 ${esc(cust.name)} 商品 金额</code> 记录。`, {
+          parse_mode: 'HTML',
+        });
+      }
+      const lines = orders.map(
+        (o) =>
+          `${esc(o.order_no)} ${esc(o.product)} ${core.fmtAmount(o.amount, o.currency)} · ${esc(o.status)}（${core
+            .fmtDateTime(o.created_at)
+            .slice(0, 10)}）`
+      );
+      await ctx.reply(`📦 <b>${esc(cust.name)} 的订单（${orders.length}）</b>\n\n` + lines.join('\n'), { parse_mode: 'HTML' });
+    } catch (e) {
+      await ctx.reply('查询失败：' + esc(e.message)).catch(() => {});
+    }
+  });
+
+  bot.action(/^msg:(\d+)$/, async (ctx) => {
+    try {
+      const cust = await db.getCustomerById(ctx.from.id, Number(ctx.match[1]));
+      if (!cust) return ctx.answerCbQuery('客户不存在');
+      const msgs = await db.listMessages(ctx.from.id, { customerId: cust.id, limit: 30 });
+      await ctx.answerCbQuery();
+      if (!msgs.length) {
+        return ctx.reply(`${esc(cust.name)} 暂无消息记录。转发客户消息给 bot 即可归档。`, { parse_mode: 'HTML' });
+      }
+      const lines = msgs.map((m) => `${core.fmtDateTime(m.created_at)} ${esc((m.text || '').slice(0, 60))}`);
+      await ctx.reply(`💬 <b>${esc(cust.name)} 的消息记录（${msgs.length}）</b>\n\n` + lines.join('\n'), { parse_mode: 'HTML' });
+    } catch (e) {
+      await ctx.reply('查询失败：' + esc(e.message)).catch(() => {});
+    }
+  });
+
+  // 兜底：转发即归档 / 随手记
+  bot.on('message', async (ctx) => {
+    if (!ctx.chat || ctx.chat.type !== 'private' || !ctx.message) return;
+    if (ctx.message.text && ctx.message.text.startsWith('/')) return; // 命令交给命令处理器
+    const text = ctx.message.text || ctx.message.caption || '';
+    const isForward = !!(ctx.message.forward_origin || ctx.message.forward_from || ctx.message.forward_from_chat);
+    return saveTimelineMessage(ctx, isForward ? 'forward' : 'note', text);
   });
 
   return bot;

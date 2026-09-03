@@ -14,6 +14,7 @@ module.exports = async function handler(req, res) {
   try {
     if (!sender) sender = new Telegram(process.env.BOT_TOKEN);
     await reminders.scanAllDue(sender);
+    await reminders.maybeSendDailyDigest(sender);
     res.status(200).json({ ok: true });
   } catch (e) {
     console.error('tick error:', e);

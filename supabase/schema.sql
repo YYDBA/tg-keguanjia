@@ -76,6 +76,21 @@ create table if not exists activation_codes (
   created_at    timestamptz not null default now()
 );
 
+-- 客户消息时间线（转发即归档 / 随手记）
+create table if not exists messages (
+  id          bigint generated always as identity primary key,
+  owner_id    bigint not null references users(telegram_id) on delete cascade,
+  customer_id bigint references customers(id) on delete set null,
+  text        text,
+  kind        text not null default 'forward',
+  created_at  timestamptz not null default now()
+);
+create index if not exists idx_messages_owner on messages(owner_id, created_at desc);
+create index if not exists idx_messages_customer on messages(customer_id, created_at desc);
+
+-- 每日待办摘要发送记录（避免一天重复推送）
+alter table users add column if not exists last_digest_date date;
+
 -- 原子获取下一订单序号
 create or replace function next_order_seq(p_owner bigint)
 returns int language plpgsql as $$
@@ -113,6 +128,7 @@ alter table orders    enable row level security;
 alter table reminders enable row level security;
 alter table counters  enable row level security;
 alter table activation_codes enable row level security;
+alter table messages enable row level security;
 
 -- 服务端通过 service_role key 绕过 RLS；公网 anon 一律拒绝
 drop policy if exists "deny anon all users"     on users;
@@ -127,3 +143,5 @@ drop policy if exists "deny anon all counters" on counters;
 create policy "deny anon all counters"  on counters  for all using (false) with check (false);
 drop policy if exists "deny anon all activation_codes" on activation_codes;
 create policy "deny anon all activation_codes" on activation_codes for all using (false) with check (false);
+drop policy if exists "deny anon all messages" on messages;
+create policy "deny anon all messages" on messages for all using (false) with check (false);

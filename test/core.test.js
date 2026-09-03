@@ -134,6 +134,19 @@ test('fmtDateTime：默认按北京时间(UTC+8)显示', () => {
   assert.equal(core.fmtDateTime(new Date('2026-09-03T08:29:00Z'), 0), '2026-09-03 08:29');
 });
 
+test('beijingParts：UTC 换算为北京时间', () => {
+  const p = core.beijingParts(new Date('2026-09-03T08:29:00Z'));
+  assert.equal(p.date, '2026-09-03');
+  assert.equal(p.hh, 16);
+  assert.equal(p.mm, 29);
+});
+
+test('extractHints：识别金额与订单号', () => {
+  assert.deepEqual(core.extractHints('Lily 定了 120 个马克杯 USD 2400'), { amount: 'USD 2400' });
+  assert.deepEqual(core.extractHints('PO #ABC-123 请尽快发货'), { orderNo: 'ABC-123' });
+  assert.deepEqual(core.extractHints('随便聊聊'), {});
+});
+
 test('escapeHtml 防注入', () => {
   assert.equal(core.escapeHtml('<b>&"'), '&lt;b&gt;&amp;&quot;');
 });

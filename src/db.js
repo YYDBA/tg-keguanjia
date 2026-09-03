@@ -375,6 +375,102 @@ async function listActivationCodes(createdBy) {
   return data || [];
 }
 
+// ---- 消息时间线（转发即归档 / 随手记）----
+async function addMessage(ownerId, { customerId = null, text, kind = 'forward' }) {
+  const { data, error } = await getDb()
+    .from('messages')
+    .insert({ owner_id: ownerId, customer_id: customerId, text, kind })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function linkMessageToCustomer(messageId, customerId) {
+  const { data, error } = await getDb()
+    .from('messages')
+    .update({ customer_id: customerId })
+    .eq('id', messageId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function listMessages(ownerId, { customerId = null, limit = 20 } = {}) {
+  let q = getDb()
+    .from('messages')
+    .select('*')
+    .eq('owner_id', ownerId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (customerId) q = q.eq('customer_id', customerId);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
+async function listRecentCustomers(ownerId, limit = 5) {
+  const { data, error } = await getDb()
+    .from('customers')
+    .select('*')
+    .eq('owner_id', ownerId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
+async function getCustomerById(ownerId, id) {
+  const { data, error } = await getDb()
+    .from('customers')
+    .select('*')
+    .eq('id', id)
+    .eq('owner_id', ownerId)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+async function getCustomerByName(ownerId, name) {
+  const { data, error } = await getDb()
+    .from('customers')
+    .select('*')
+    .eq('owner_id', ownerId)
+    .ilike('name', name)
+    .order('created_at', { ascending: true })
+    .limit(1);
+  if (error) throw error;
+  return (data && data[0]) || null;
+}
+
+async function listOrdersByCustomer(ownerId, customerName) {
+  const { data, error } = await getDb()
+    .from('orders')
+    .select('*')
+    .eq('owner_id', ownerId)
+    .ilike('customer_name', customerName)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  return data || [];
+}
+
+// ---- 每日待办摘要 ----
+async function listAllUsers() {
+  const { data, error } = await getDb().from('users').select('*').limit(5000);
+  if (error) throw error;
+  return data || [];
+}
+
+async function markDigestSent(ownerId, dateStr) {
+  const { error } = await getDb()
+    .from('users')
+    .update({ last_digest_date: dateStr })
+    .eq('telegram_id', ownerId);
+  if (error) throw error;
+}
+
 module.exports = {
   getDb,
   upsertUser,
@@ -405,4 +501,13 @@ module.exports = {
   getActivationCode,
   useActivationCode,
   listActivationCodes,
+  addMessage,
+  linkMessageToCustomer,
+  listMessages,
+  listRecentCustomers,
+  getCustomerById,
+  getCustomerByName,
+  listOrdersByCustomer,
+  listAllUsers,
+  markDigestSent,
 };
