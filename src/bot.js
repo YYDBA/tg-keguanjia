@@ -136,7 +136,7 @@ function createBot() {
         `每周一 09:00 自动推送经营周报\n\n` +
         `💰 <b>账户</b>\n` +
         `<code>/plan</code> 我的套餐\n` +
-        `<code>/upgrade</code> 升级 Pro\n` +
+        `<code>/upgrade</code> / <code>/pay</code> 用 USDT/TON 升级 Pro\n` +
         `<code>/redeem 兑换码</code> 用兑换码开通\n` +
         `<code>/invite</code> 邀请好友解锁额度`,
       { parse_mode: 'HTML' }
@@ -604,7 +604,7 @@ function createBot() {
     }
   });
 
-  // ---- 套餐 / 升级 / 邀请 ----
+  // ---- 套餐 / 升级 / 支付 ----
   async function sendUpgrade(ctx) {
     const user = await db.getUser(ctx.from.id).catch(() => null);
     const plan = user ? user.plan : 'free';
@@ -618,42 +618,69 @@ function createBot() {
       `⬆️ <b>升级 Pro</b>\n\n` +
         `免费版：20 客户 / 30 订单 / 5 提醒\n` +
         `Pro：2000 客户 / 5000 订单 / 200 提醒 ＋ CSV 导出\n\n` +
-        `· 月度：300 Stars（≈¥21/月）\n` +
-        `· 年度：2900 Stars（≈¥200/年，8 折）\n\n` +
-        `支付走 Telegram Stars，即时到账；如你的地区 Stars 不可用，可联系作者获取<b>兑换码</b>，发送 <code>/redeem 兑换码</code> 开通。`,
+        `· 月度：3 USDT（TON 链）\n` +
+        `· 年度：28 USDT（TON 链，8 折）\n\n` +
+        `支持 <b>USDT / TON</b> 转账，到账后自动开通。也可联系作者获取兑换码：<code>/redeem 兑换码</code>。`,
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('💎 Pro 月度 300★', 'pay:month')],
-          [Markup.button.callback('💎 Pro 年度 2900★', 'pay:year')],
+          [Markup.button.callback('💎 Pro 1 个月 · 3 USDT', 'pay:1:usdt'), Markup.button.callback('💎 Pro 1 年 · 28 USDT', 'pay:12:usdt')],
+          [Markup.button.callback('💎 Pro 1 个月 · TON', 'pay:1:ton'), Markup.button.callback('💎 Pro 1 年 · TON', 'pay:12:ton')],
         ]),
       }
     );
   }
 
   bot.command('upgrade', (ctx) => sendUpgrade(ctx));
-  bot.action('pay:month', async (ctx) => {
-    await ctx.answerCbQuery('正在发起支付…').catch(() => {});
+  bot.command('pay', (ctx) => sendUpgrade(ctx));
+
+  // 买家发起支付：生成支付单 + 收款信息
+  async function startPay(ctx, months, asset) {
     try {
-      await payments.sendUpgradeInvoice(ctx, 'month');
+      const wallet = (await db.getSetting('wallet_address')) || process.env.TON_WALLET || '';
+      if (!wallet) {
+        const isOwner = Number(ctx.from.id) === Number(process.env.OWNER_ID);
+        await ctx.answerCbQuery(isOwner ? '请先发 /setwallet 配置收款钱包' : '收款方暂未开放支付').catch(() => {});
+        return;
+      }
+      await ctx.answerCbQuery('正在生成支付单…').catch(() => {});
+      const r = await payments.createPayRequest({ buyerTg: ctx.from.id, months, asset });
+      const plan = core.PAY_PLANS[months] || core.PAY_PLANS[1];
+      await ctx.reply(
+        `💰 <b>Pro ${plan.months} 个月</b>\n` +
+          `应付：<b>${core.fmtAmount(r.amount, asset)}</b>\n\n` +
+          `1) 打开 TON 钱包（Tonkeeper / @wallet / Tonhub）\n` +
+          `2) 向收款地址转账 ${r.amount} ${asset}：\n` +
+          `<code>${esc(wallet)}</code>\n` +
+          `3) 附言/备注尽量填：<code>${esc(r.memo)}</code>\n` +
+          `4) 到账后自动开通，无需再找管理员\n\n` +
+          `（TON 链地址支持 USDT 与 TON）`,
+        { parse_mode: 'HTML' }
+      );
     } catch (e) {
-      await ctx
-        .reply('Stars 支付暂不可用（可能为地区限制）。可联系作者获取兑换码，发送 <code>/redeem 兑换码</code> 开通。', {
-          parse_mode: 'HTML',
-        })
-        .catch(() => {});
+      console.error('startPay', e);
+      await ctx.reply('发起支付失败：' + esc(e.message)).catch(() => {});
     }
-  });
-  bot.action('pay:year', async (ctx) => {
-    await ctx.answerCbQuery('正在发起支付…').catch(() => {});
+  }
+  bot.action(/^pay:(\d+):(usdt|ton)$/, (ctx) => startPay(ctx, Number(ctx.match[1]), ctx.match[2]));
+
+  // 管理员配置收款钱包
+  bot.command('setwallet', async (ctx) => {
     try {
-      await payments.sendUpgradeInvoice(ctx, 'year');
+      if (Number(ctx.from.id) !== Number(process.env.OWNER_ID)) {
+        return ctx.reply('仅管理员可配置收款钱包。');
+      }
+      const addr = payload(ctx).trim();
+      if (!addr || !/^(EQ|UQ|0:)[A-Za-z0-9:_-]{20,}$/.test(addr)) {
+        return ctx.reply('地址格式不对。示例：<code>/setwallet EQABC…</code>（TON 钱包地址）', { parse_mode: 'HTML' });
+      }
+      await db.setSetting('wallet_address', addr);
+      await ctx.reply(`✅ 收款钱包已设置：\n<code>${esc(addr)}</code>\n\n现在买家可用 <code>/pay</code> 支付。`, {
+        parse_mode: 'HTML',
+      });
     } catch (e) {
-      await ctx
-        .reply('Stars 支付暂不可用（可能为地区限制）。可联系作者获取兑换码，发送 <code>/redeem 兑换码</code> 开通。', {
-          parse_mode: 'HTML',
-        })
-        .catch(() => {});
+      console.error('/setwallet', e);
+      await ctx.reply('设置失败：' + esc(e.message)).catch(() => {});
     }
   });
 

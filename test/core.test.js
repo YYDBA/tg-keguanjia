@@ -186,6 +186,30 @@ test('buildOrderMessage：订单确认/发货通知英文模板', () => {
   assert.match(ship, /has been shipped/);
 });
 
+test('generateMemo：支付备注码格式', () => {
+  assert.match(core.generateMemo(), /^TGK-[A-Z2-9]{6}$/);
+  assert.notEqual(core.generateMemo(), core.generateMemo());
+});
+
+test('matchPayment：按备注码 / 按金额唯一匹配', () => {
+  const requests = [
+    { id: 'a', memo: 'TGK-ABC123', asset: 'USDT', amount: '3', status: 'pending' },
+    { id: 'b', memo: 'TGK-DFG456', asset: 'TON', amount: '2.24', status: 'pending' },
+  ];
+  // 备注码命中
+  assert.equal(core.matchPayment({ asset: 'USDT', amount: 3, comment: 'TGK-ABC123', txHash: 't1', ts: 0 }, requests).id, 'a');
+  // 无备注，金额唯一命中
+  assert.equal(core.matchPayment({ asset: 'TON', amount: 2.25, comment: '', txHash: 't2', ts: 0 }, requests).id, 'b');
+  // 金额不匹配 → null
+  assert.equal(core.matchPayment({ asset: 'USDT', amount: 9.99, comment: '', txHash: 't3', ts: 0 }, requests), null);
+  // 两个同金额 USDT 待付 → 金额无法唯一匹配 → null
+  const dup = requests.concat([{ id: 'c', memo: 'TGK-XYZ789', asset: 'USDT', amount: '3', status: 'pending' }]);
+  assert.equal(core.matchPayment({ asset: 'USDT', amount: 3, comment: '', txHash: 't4', ts: 0 }, dup), null);
+  // 已支付的不参与匹配
+  const paid = requests.map((r) => ({ ...r, status: 'paid' }));
+  assert.equal(core.matchPayment({ asset: 'USDT', amount: 3, comment: '', txHash: 't5', ts: 0 }, paid), null);
+});
+
 test('escapeHtml 防注入', () => {
   assert.equal(core.escapeHtml('<b>&"'), '&lt;b&gt;&amp;&quot;');
 });

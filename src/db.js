@@ -391,6 +391,62 @@ async function listActivationCodes(createdBy) {
   return data || [];
 }
 
+// ---- 设置（key-value，如收款钱包地址）----
+async function getSetting(key) {
+  const { data, error } = await getDb().from('settings').select('value').eq('key', key).maybeSingle();
+  if (error) throw error;
+  return (data && data.value) || null;
+}
+
+async function setSetting(key, value) {
+  const { data, error } = await getDb().from('settings').upsert({ key, value }).select('*').maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+// ---- TON/USDT 支付请求 ----
+async function createPayRequest({ memo, ownerId, buyerTg, asset, amount, planMonths }) {
+  const { data, error } = await getDb()
+    .from('pay_requests')
+    .insert({ memo, owner_id: ownerId, buyer_tg: buyerTg, asset, amount, plan_months: planMonths })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function listPendingPayRequests() {
+  const { data, error } = await getDb()
+    .from('pay_requests')
+    .select('*')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return data || [];
+}
+
+async function markPayRequestPaid(id, txHash) {
+  const { data, error } = await getDb()
+    .from('pay_requests')
+    .update({ status: 'paid', paid_tx_hash: txHash, paid_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('status', 'pending')
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data || null;
+}
+
+async function listUsedPayTxHashes() {
+  const { data, error } = await getDb()
+    .from('pay_requests')
+    .select('paid_tx_hash')
+    .not('paid_tx_hash', 'is', null);
+  if (error) throw error;
+  return new Set((data || []).map((r) => r.paid_tx_hash));
+}
+
 // ---- 消息时间线（转发即归档 / 随手记）----
 async function addMessage(ownerId, { customerId = null, text, kind = 'forward' }) {
   const { data, error } = await getDb()
@@ -527,6 +583,12 @@ module.exports = {
   getActivationCode,
   useActivationCode,
   listActivationCodes,
+  getSetting,
+  setSetting,
+  createPayRequest,
+  listPendingPayRequests,
+  markPayRequestPaid,
+  listUsedPayTxHashes,
   addMessage,
   linkMessageToCustomer,
   listMessages,

@@ -92,6 +92,34 @@ create index if not exists idx_messages_customer on messages(customer_id, create
 alter table users add column if not exists last_digest_date date;
 alter table users add column if not exists last_weekly_date date;
 
+-- 支付请求（TON/USDT 自动到账）
+create table if not exists pay_requests (
+  id uuid primary key default gen_random_uuid(),
+  memo text unique not null,
+  owner_id bigint not null,
+  buyer_tg bigint not null,
+  asset text not null default 'USDT',
+  amount text not null,
+  plan_months int not null default 1,
+  status text not null default 'pending',
+  paid_tx_hash text,
+  created_at timestamptz not null default now(),
+  paid_at timestamptz
+);
+create index if not exists pay_requests_status_idx on pay_requests (status);
+create index if not exists pay_requests_buyer_idx on pay_requests (buyer_tg);
+
+-- 设置（key-value）
+create table if not exists settings (
+  key text primary key,
+  value text
+);
+
+alter table pay_requests enable row level security;
+alter table settings enable row level security;
+create policy "deny anon all pay_requests" on pay_requests for all using (false);
+create policy "deny anon all settings" on settings for all using (false);
+
 -- 原子获取下一订单序号
 create or replace function next_order_seq(p_owner bigint)
 returns int language plpgsql as $$

@@ -284,6 +284,40 @@ function generateCode(length = 10) {
   return out;
 }
 
+// ---- TON/USDT 收款 ----
+// 订阅套餐：月付 / 年付（USDT 价，TON 按实时汇率换算）
+const PAY_PLANS = {
+  1: { months: 1, usdt: 3 },
+  12: { months: 12, usdt: 28 },
+};
+
+// 支付备注码：买家转账时尽量填入，用于精确匹配
+function generateMemo() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = 'TGK-';
+  for (let i = 0; i < 6; i++) out += chars[crypto.randomInt(chars.length)];
+  return out;
+}
+
+// 金额近似相等（允许少量误差，USDT 2 分 / TON 0.05 以内）
+function amountsClose(a, b, asset) {
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+  const tol = asset === 'USDT' ? 0.02 : 0.05;
+  return Math.abs(a - b) <= Math.max(tol, Math.abs(b) * 0.01);
+}
+
+// 将一条链上入账匹配到待支付请求：先按备注码，再按金额唯一匹配
+function matchPayment(payment, requests) {
+  const pend = (requests || []).filter((r) => r.status === 'pending');
+  if (payment.comment) {
+    const c = String(payment.comment).toUpperCase();
+    const byMemo = pend.find((r) => c.includes(r.memo));
+    if (byMemo) return byMemo;
+  }
+  const cand = pend.filter((r) => r.asset === payment.asset && amountsClose(payment.amount, Number(r.amount), r.asset));
+  return cand.length === 1 ? cand[0] : null;
+}
+
 module.exports = {
   PLANS,
   ORDER_STATUSES,
@@ -307,4 +341,8 @@ module.exports = {
   parseOrderNote,
   nextOrderStatus,
   buildOrderMessage,
+  PAY_PLANS,
+  generateMemo,
+  amountsClose,
+  matchPayment,
 };
