@@ -147,10 +147,16 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
-function fmtDateTime(d) {
+// 显示时间：默认按北京时间（UTC+8）输出，避免 Vercel 服务器 UTC 时区导致显示差 8 小时
+function fmtDateTime(d, tzOffsetHours = 8) {
   const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return '';
+  const shifted = new Date(dt.getTime() + tzOffsetHours * 3600000);
   const p = (n) => String(n).padStart(2, '0');
-  return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())} ${p(dt.getHours())}:${p(dt.getMinutes())}`;
+  return (
+    `${shifted.getUTCFullYear()}-${p(shifted.getUTCMonth() + 1)}-${p(shifted.getUTCDate())} ` +
+    `${p(shifted.getUTCHours())}:${p(shifted.getUTCMinutes())}`
+  );
 }
 
 // 生成兑换码（去掉易混淆字符 I/L/0/O/1）

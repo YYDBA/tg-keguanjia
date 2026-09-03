@@ -129,6 +129,11 @@ test('金额格式化', () => {
   assert.equal(core.fmtAmount(1299.5, 'CNY'), '¥1,299.50');
 });
 
+test('fmtDateTime：默认按北京时间(UTC+8)显示', () => {
+  assert.equal(core.fmtDateTime(new Date('2026-09-03T08:29:00Z')), '2026-09-03 16:29');
+  assert.equal(core.fmtDateTime(new Date('2026-09-03T08:29:00Z'), 0), '2026-09-03 08:29');
+});
+
 test('escapeHtml 防注入', () => {
   assert.equal(core.escapeHtml('<b>&"'), '&lt;b&gt;&amp;&quot;');
 });
