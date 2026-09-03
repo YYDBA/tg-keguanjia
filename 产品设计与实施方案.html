@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TG客管家 · 产品设计与实施方案</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Roboto','PingFang SC','Segoe UI',Arial,sans-serif; background:#F4F3EE; color:#1A1B1C; line-height:1.7; padding:0 0 60px; }
+  .top { background:linear-gradient(135deg,#EAF3FA,#DCEBFF); padding:34px 20px 28px; border-bottom:1px solid #E4E3DD; }
+  .wrap { max-width:900px; margin:0 auto; padding:0 16px; }
+  h1 { font-size:26px; font-weight:700; }
+  .top .sub { color:#55607a; font-size:14px; margin-top:6px; }
+  .badges { margin-top:14px; display:flex; flex-wrap:wrap; gap:8px; }
+  .bd { font-size:12px; background:#fff; border:1px solid #cfd9e8; color:#2b4a6b; border-radius:20px; padding:3px 12px; }
+  nav { background:#fff; border-bottom:1px solid #E4E3DD; position:sticky; top:0; z-index:5; }
+  nav .wrap { display:flex; flex-wrap:wrap; gap:4px 18px; padding:10px 16px; }
+  nav a { color:#2b4a6b; text-decoration:none; font-size:13.5px; font-weight:500; }
+  nav a:hover { text-decoration:underline; }
+  h2 { font-size:20px; font-weight:700; margin:44px 0 6px; color:#1A1B1C; }
+  h3 { font-size:16px; font-weight:600; margin:26px 0 8px; color:#1A1B1C; }
+  h4 { font-size:14px; font-weight:600; margin:18px 0 6px; }
+  .lead { color:#4a5160; font-size:14.5px; margin-bottom:12px; }
+  .card { background:#fff; border:1px solid #E4E3DD; border-radius:14px; padding:18px 20px; margin:14px 0; }
+  .grid { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; }
+  .g { flex:1 1 200px; background:#F8F7F3; border-radius:12px; padding:12px 14px; }
+  .g b { display:block; font-size:13.5px; margin-bottom:4px; }
+  .g span { font-size:12.5px; color:#4a5160; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin:12px 0; background:#fff; }
+  th,td { text-align:left; padding:8px 10px; border-bottom:1px solid #E4E3DD; vertical-align:top; }
+  th { background:#F4F6F9; color:#4a5160; font-weight:600; font-size:12.5px; }
+  code { background:#EFF1F5; border-radius:5px; padding:1px 6px; font-size:12.5px; font-family:Consolas,Menlo,monospace; }
+  pre { background:#24292F; color:#E6EDF3; border-radius:10px; padding:14px 16px; overflow-x:auto; font-size:12.5px; line-height:1.6; margin:12px 0; font-family:Consolas,Menlo,monospace; }
+  .ok { background:rgba(82,196,26,0.10); border:1px solid rgba(82,196,26,0.35); border-radius:10px; padding:12px 14px; font-size:13.5px; margin:10px 0; }
+  .warn { background:rgba(250,173,20,0.13); border:1px solid rgba(250,173,20,0.4); border-radius:10px; padding:12px 14px; font-size:13.5px; margin:10px 0; }
+  .bad { background:rgba(234,102,104,0.10); border:1px solid rgba(234,102,104,0.35); border-radius:10px; padding:12px 14px; font-size:13.5px; margin:10px 0; }
+  ul,ol { padding-left:22px; margin:8px 0; }
+  li { margin-bottom:6px; font-size:13.5px; }
+  .tag { display:inline-block; font-size:11.5px; font-weight:600; padding:2px 9px; border-radius:12px; margin-right:6px; }
+  .t-blue { background:rgba(139,200,234,0.22); color:#17506e; }
+  .t-green{ background:rgba(148,216,195,0.3); color:#126b52; }
+  .t-orange{background:rgba(250,173,20,0.18); color:#7a5c00; }
+  .t-red  { background:rgba(234,102,104,0.14); color:#a13336; }
+  .ref { font-size:12px; color:#6B7280; }
+  .ref a { color:#3b6ea5; }
+  .num { font-variant-numeric:tabular-nums; }
+  @media (max-width:480px){ h1{font-size:22px;} nav a{font-size:12.5px;} }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="wrap">
+    <h1>TG客管家 · 产品设计与实施方案</h1>
+    <div class="sub">跨境/外贸卖家的 Telegram 客户·订单管理 Bot ｜ 零资金冷启动 ｜ AI 辅助开发（产品本身不依赖 AI API）</div>
+    <div class="badges">
+      <span class="bd">调查完成</span><span class="bd">功能设计</span><span class="bd">商业设计</span><span class="bd">曝光传播设计</span><span class="bd">自然量设计</span><span class="bd">代码已实现</span>
+    </div>
+  </div>
+</div>
+
+<nav>
+  <div class="wrap">
+    <a href="#s1">① 调查报告</a>
+    <a href="#s2">② 功能设计</a>
+    <a href="#s3">③ 商业设计</a>
+    <a href="#s4">④ 曝光传播与自然量</a>
+    <a href="#s5">⑤ 实施状态与部署</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<h2 id="s1">① 调查报告</h2>
+<p class="lead">方向定稿：<b>面向跨境/外贸卖家的 Telegram 客户·订单管理 Bot</b>（中文界面、轻量、免费够用、Stars 付费解锁）。选它的核心理由：需求真实且高频、付费意愿强（B2B 刚需）、开发者（你）在国内能触达目标用户、开发简单零成本。</p>
+
+<h3>1.1 关键事实核验（2026-09）</h3>
+<div class="card">
+<h4>支付：Telegram Stars（核验通过，零门槛可接入）</h4>
+<ul>
+  <li>Stars 是 Telegram 官方应用内货币，bot 直接用 <code>sendInvoice</code>（货币 <code>XTR</code>）收款，<b>不需要支付处理器、不需要商户号</b>——这对"零资金、无营业执照"的你至关重要。</li>
+<li><b>地区限制（已核验）</b>：Telegram Stars 在中国大陆等区域不可用（账号注册地区级别限制，换 VPN 无效）。因此本方案<b>已内置"兑换码"收款</b>：管理员 <code>/gencode</code> 生成兑换码 → 用户 <code>/redeem</code> 开通 Pro，任何地区可用；Stars 可用时两者并存。</li>
+  <li>提现：<code>@BotFather → /mybots → Payments → Withdraw Stars</code>，最低 1000 Stars，转 TON 钱包 1–5 分钟到账；也可走法币。</li>
+  <li>到手单价：桌面/网页购买约 <b>$0.013/星</b>（约 ¥0.09/星）；iOS/Android 内购被 Apple/Google 抽 30%，约 $0.009/星。订阅类发票上限已提到 <b>10,000 Stars</b>。有 21 天结算窗口。</li>
+</ul>
+<h4>竞品：中文轻量个人卖家版几乎空白</h4>
+<ul>
+  <li>英文 Telegram CRM 主力是 <b>CRMChat</b>（$28/月起、团队级、网页看板+Mini App）、NetHunt、Vtiger 等——重、贵、面向销售团队。</li>
+  <li>俄语区是 bot 搭建器（Salebot、Bothelp 等）面向开店，非个人客户管理。</li>
+  <li>Telegram Business（免费）只有基础标签/快捷回复，<b>没有订单状态、跟进提醒、统计</b>。</li>
+  <li>结论：<b>"轻量 + 中文 + 个人卖家 + 订单管理"四合一组合暂无直接对手</b>，存在 1–2 年的窗口。</li>
+</ul>
+<h4>生态与分发：有"弱自然流量"机制</h4>
+<ul>
+  <li>Telegram 官方 App Center（经 Moderation bot 提交收录）+ findmini.app、tg.app、storebot.me、TGFind 等目录，带分类/编辑精选/投票。</li>
+  <li>实战经验：<b>在 ≥1000 订阅的频道置顶一条启动帖，可在一周内推上 App Center "Trending"，无需广告费</b>——这是本项目自然量的主要杠杆。</li>
+</ul>
+<h4>部署：零资金技术栈可行</h4>
+<ul>
+  <li>Node.js + telegraf 4 + Vercel Serverless（免费层）+ Supabase Postgres（免费层）+ 免费 cron-job.org 定时触发提醒扫描。</li>
+  <li>提醒推送方案：Vercel 免费层无 cron，故设计 <code>/api/tick</code> 端点由 cron-job.org 每 15 分钟免费调用；同时用户每次与 bot 互动时顺带补发到期提醒。</li>
+</ul>
+</div>
+
+<h3>1.2 目标用户画像</h3>
+<div class="grid">
+  <div class="g"><b>典型用户</b><span>Amazon / TikTok Shop / Shopify 独立站卖家、外贸业务员、海外代购、货代，在 TG 上对接海外客户与供应商</span></div>
+  <div class="g"><b>核心痛点</b><span>客户信息散在聊天记录里记不住；订单靠脑子/Excel；该跟进时总忘；没有客户标签</span></div>
+  <div class="g"><b>付费意愿</b><span>生意刚需，"省时间/不漏单"直接关联收入，比普通工具强</span></div>
+  <div class="g"><b>获取渠道</b><span>你在国内就能触达：微信群、知乎、小红书、福步/雨果等外贸社区 → 引流到 TG</span></div>
+</div>
+
+<h3>1.3 机会与风险</h3>
+<div class="grid">
+  <div class="g"><b>机会</b><span>① 工具类供给稀缺；② 中文轻量版空白；③ App Center 红利；④ B2B 付费意愿真实</span></div>
+  <div class="g"><b>风险</b><span>① 分发慢（需 3–6 个月冷启动）；② 大厂若下场（Telegram Business 升级）需差异化；③ 单客户价值低，需走量</span></div>
+</div>
+
+<h2 id="s2">② 功能设计</h2>
+<p class="lead">定位一句话：<b>"Telegram 里最轻的中文客户订单管家——3 秒上手，免费够用，Pro 解锁额度。"</b> 产品形态：纯对话 Bot（Bot + 按钮），不做 Mini App，把开发复杂度和维护成本压到最低。</p>
+
+<h3>2.1 功能清单（v1）</h3>
+<table>
+  <tr><th>模块</th><th>命令 / 交互</th><th>说明</th></tr>
+  <tr><td><b>客户管理</b></td><td><code>/customer 添加 名字 [#标签] [备注]</code><br><code>/tag 名字 #标签…</code><br><code>/note 名字 备注</code><br><code>/customers</code> / <code>/search 关键词</code></td><td>按名字建客户；打标签（#VIP #待发货 #要发票…）；加备注；列表与按名字/标签/备注搜索</td></tr>
+  <tr><td><b>订单管理</b></td><td><code>/order 添加 客户名 商品 金额</code><br><code>/order 状态 单号 新状态</code><br><code>/orders [状态]</code><br><code>/order 单号</code></td><td>自动生成订单号（如 <code>KJ-0001</code>）；状态机流转；按状态筛选；查看详情</td></tr>
+  <tr><td><b>跟进提醒</b></td><td><code>/remind 客户名 N天|日期 内容</code><br><code>/reminders</code></td><td>到点私聊提醒；列出待办；完成标记</td></tr>
+  <tr><td><b>统计 / 导出</b></td><td><code>/stats</code><br><code>/export</code></td><td>客户数、各状态订单数、预计收入；一键导出订单 CSV（方便对账）</td></tr>
+  <tr><td><b>付费</b></td><td><code>/upgrade</code> / <code>/plan</code></td><td>Telegram Stars 发票升级 Pro（月度/年度）；自动到账</td></tr>
+  <tr><td><b>引导</b></td><td><code>/start</code> / <code>/help</code></td><td>欢迎 + 3 步上手 + 命令速查</td></tr>
+</table>
+
+<h3>2.2 订单状态机</h3>
+<div class="card">
+<p>允许流转：</p>
+<ul>
+  <li>待付款 → 待发货 ／ 已取消</li>
+  <li>待发货 → 已发货 ／ 已取消</li>
+  <li>已发货 → 已完成 ／ 已取消</li>
+  <li>已完成 / 已取消 → 终态（不再流转）</li>
+</ul>
+<p>非法流转给出提示并列出可选状态。逾期逻辑：订单停留在"待付款/待发货/已发货"超过 7 天，纳入 <code>/stats</code> 风险提示 + 可在提醒中一键跟进。</p>
+</div>
+
+<h3>2.3 免费 / Pro 额度（制造升级动机）</h3>
+<table>
+  <tr><th>资源</th><th>免费版</th><th>Pro 版</th></tr>
+  <tr><td>客户数</td><td>20</td><td>2,000</td></tr>
+  <tr><td>订单数</td><td>30</td><td>5,000</td></tr>
+  <tr><td>跟进提醒</td><td>5</td><td>200</td></tr>
+  <tr><td>CSV 导出</td><td>❌</td><td>✅</td></tr>
+</table>
+<p class="ref">免费档给足体验、卡住规模；客户数一多自然触发升级。邀请好友可临时解锁额度（见④裂变）。</p>
+
+<h3>2.4 数据模型（Supabase / PostgreSQL）</h3>
+<pre>users       (telegram_id PK, username, first_name, plan='free'|'pro', plan_until, created_at)
+customers   (id, owner_id FK→users, name, tg_username, tg_user_id, tags text[], note, created_at)
+orders      (id, order_no, owner_id FK, customer_id FK, customer_name,
+             product, amount numeric, currency='USD', status, status_changed_at,
+             follow_up_date, created_at)
+reminders   (id, owner_id FK, customer_id FK, content, remind_at, done, created_at)
+索引：customers(owner_id) / orders(owner_id,status) / reminders(remind_at) where done=false</pre>
+
+<h3>2.5 三条核心交互流程（示例）</h3>
+<div class="card">
+<p><b>① 记一个客户</b></p>
+<pre>我:  /customer 添加 Lily [#VIP] [美国站大客户，偏好空运]
+Bot: ✅ 已记录客户 Lily
+     标签：#VIP
+     备注：美国站大客户，偏好空运</pre>
+<p><b>② 记一笔订单并跟进</b></p>
+<pre>我:  /order 添加 Lily 陶瓷马克杯套装×120  USD 2400
+Bot: ✅ 订单已创建
+     单号：KJ-0003｜客户：Lily｜金额：$2400.00｜状态：待付款
+我:  /remind Lily 3天 催款
+Bot: ⏰ 已设置：3天后提醒"催款"</pre>
+<p><b>③ 查询与升级</b></p>
+<pre>我:  /orders 待发货
+Bot: 📦 待发货（2 单）…（列出明细）
+我:  /upgrade
+Bot: 点击按钮支付 300 Stars 升级 Pro（月度）</pre>
+</div>
+
+<h2 id="s3">③ 商业设计</h2>
+<h3>3.1 价值主张与商业模式</h3>
+<ul>
+  <li>价值：把卖家从"翻聊天记录 + 手写 Excel"里解放出来；漏单、忘跟进直接等于丢钱。</li>
+  <li>模式：<b>Freemium 订阅</b>（Stars 内购）＋ 后期可扩展：团队版（按成员）、白标给第三方、联盟返佣。</li>
+</ul>
+<h3>3.2 定价（Stars，全部应用内支付，零收款成本）</h3>
+<table>
+  <tr><th>档位</th><th>价格</th><th>约合</th><th>说明</th></tr>
+  <tr><td>免费</td><td>0</td><td>—</td><td>20 客户 / 30 订单 / 5 提醒</td></tr>
+  <tr><td>Pro 月度</td><td>300 Stars/月</td><td>≈ ¥21/月</td><td>解锁全部额度 + 导出</td></tr>
+  <tr><td>Pro 年度</td><td>2,900 Stars/年</td><td>≈ ¥200/年（约 8 折）</td><td>减少续费流失</td></tr>
+</table>
+<p class="warn">到手核算（按 $0.013/星、汇率 ≈7.2）：每笔月度订阅到手 ≈ ¥21×0.94 ≈ ¥20，扣除 21 天结算与汇率波动后仍为正毛利；成本端 Vercel/Supabase 免费层当前为 0。<b>注意</b>：中国大陆区域 Stars 不可用，实际首期收款走<b>兑换码</b>（/gencode → /redeem），对用户可先以 TON/USDT 或线下转账收取。</p>
+<h3>3.3 收入预期（12 个月，中性）</h3>
+<table>
+  <tr><th>月份</th><th>注册用户</th><th>付费转化</th><th>月收入（约）</th></tr>
+  <tr><td>M1–M3 冷启动</td><td>0–800</td><td>3%</td><td>¥0–500</td></tr>
+  <tr><td>M4–M6</td><td>800–3,000</td><td>4%</td><td>¥500–2,500</td></tr>
+  <tr><td>M7–M12</td><td>3,000–10,000</td><td>5%</td><td>¥2,500–8,000</td></tr>
+</table>
+<p class="ref">中性偏保守：这是"副业级"预期，不是暴富模型；验证期目标优先放在<b>留存与口碑</b>（付费率 &gt; 拉新速度）。</p>
+
+<h2 id="s4">④ 曝光传播与自然量设计</h2>
+<h3>4.1 用户在哪里（渠道地图）</h3>
+<div class="grid">
+  <div class="g"><b>国内内容平台</b><span>小红书 / 知乎 / 公众号 / 抖音——输出"外贸人如何用 TG 管理客户"选题，占"TG 外贸"关键词</span></div>
+  <div class="g"><b>国内卖家社群</b><span>微信群 / 福步外贸论坛 / 雨果跨境 / 知无不言 / TikTok 卖家圈——发价值资料导流</span></div>
+  <div class="g"><b>Telegram 内</b><span>跨境卖家群、海外华人卖家群、App Center + 目录收录（findmini / tg.app / storebot / TGFind）</span></div>
+  <div class="g"><b>种子频道</b><span>自建"TG 外贸工具集"频道 → 冲 1000+ 订阅 → 置顶启动帖推 App Center Trending</span></div>
+</div>
+<h3>4.2 冷启动 90 天计划</h3>
+<table>
+  <tr><th>阶段</th><th>动作</th><th>目标</th></tr>
+  <tr><td>Day 1–7<br>上线</td><td>部署 bot；提交 App Center + 4 个目录；建官方频道；写 3 篇小红书/知乎"TG 外贸客户管理"内容</td><td>页面全部可访问；被动发现入口就位</td></tr>
+  <tr><td>Week 2–6<br>种子</td><td>在 5–10 个跨境卖家 TG 群 + 国内卖家群提供价值（模板/清单），自然提及 bot；私聊 20 个卖家邀测并收集反馈</td><td>200–800 注册；留存在线</td></tr>
+  <tr><td>Month 2–3<br>裂变</td><td>上线"邀请好友解锁客户额度"；给 3–5 个社群主理人 Pro 年卡换推荐；频道冲 1000 订阅后置顶启动帖</td><td>1k–3k 注册；开始有付费</td></tr>
+</table>
+<h3>4.3 自然量机制与"裂变点"</h3>
+<ul>
+  <li><b>邀请解锁</b>：每邀请 1 位好友（通过 <code>/invite</code> 专属链接注册），临时 +10 客户额度——免费档用户有强动机邀请。</li>
+  <li><b>会话即广告</b>：每条订单/提醒消息底部带 "by @XXXBot" 与加入引导。</li>
+  <li><b>内容占位</b>：长期输出"TG 外贸运营"内容，吃搜索与收藏流量，形成品牌心智。</li>
+  <li><b>目录被动流量</b>：App Center / findmini 等分类浏览——量小但持续且零成本。</li>
+</ul>
+<div class="warn"><b>自然量现实预期：</b>"发布即爆"不存在。被动目录流量每月约几十到几百点击；真正起量靠<b>内容 + 社群 + 裂变</b>三条腿。3 个月 1k–3k 注册是现实目标；验证优先于规模。</div>
+
+<h2 id="s5">⑤ 实施状态与部署</h2>
+<div class="ok">
+<b>已完成（本次交付）：</b>调查报告与四份设计 ✓ ｜ 完整可部署代码（客户/订单/提醒/统计/导出/Stars 付费/邀请裂变）✓ ｜ 数据库结构 SQL ✓ ｜ 核心逻辑单元测试通过 ✓ ｜ 部署清单见 <code>README.md</code> ✓
+</div>
+<p class="lead">代码已在本项目 <code>sellerbot/</code> 目录，你只需要做 <b>3 个账号动作</b>（需要你本人的账号，我无法代做）：</p>
+<ol>
+  <li><b>@BotFather 创建 bot</b>，拿到 <code>BOT_TOKEN</code>（顺便起名/头像/简介，并开启 Stars 支付）；</li>
+  <li><b>Supabase 建库</b>并执行 <code>supabase/schema.sql</code>，拿到 URL + anon key；</li>
+  <li><b>Vercel 部署</b>（免费），填入环境变量、设置 webhook；再用免费 cron-job.org 每 15 分钟触发 <code>/api/tick</code> 推送提醒。</li>
+</ol>
+<p class="ref">完整逐步清单与排错见 <code>sellerbot/README.md</code>。</p>
+
+<h3>参考资料</h3>
+<p class="ref">
+[1] Telegram Stars 提现与费率 — tg.legan-studio.ru / pimenov.ai / starsearn.com / exitbid.io<br>
+[2] Telegram CRM 竞品 — telebam.com / sendpulse.com / crmchat.ai<br>
+[3] App Center 与目录发现 — magnetto.com / tg.app / autogram.ninja / airdroid.com<br>
+[4] telegraf+Vercel+Supabase 部署 — github.com/dododoyo/telegraf-vercel-ts / github.com/baidoufuk/gnote / supabase.com<br>
+<span style="display:block;margin-top:4px;">以上均为 2026-09 公开资料；评分与预期为作者主观判断，非权威数据。</span>
+</p>
+
+</div>
+</body>
+</html>

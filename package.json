@@ -1,0 +1,20 @@
+{
+  "name": "tg-keguanjia",
+  "version": "1.0.0",
+  "description": "TG客管家 - 跨境/外贸卖家的 Telegram 客户订单管理 Bot",
+  "private": true,
+  "main": "api/webhook.js",
+  "scripts": {
+    "dev": "node dev.js",
+    "test": "node --test",
+    "check": "node --check src/core.js && node --check src/db.js && node --check src/payments.js && node --check src/reminders.js && node --check src/bot.js && node --check api/webhook.js && node --check api/tick.js && node --check dev.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5",
+    "telegraf": "^4.16.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
