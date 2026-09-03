@@ -90,6 +90,7 @@ create index if not exists idx_messages_customer on messages(customer_id, create
 
 -- 每日待办摘要发送记录（避免一天重复推送）
 alter table users add column if not exists last_digest_date date;
+alter table users add column if not exists last_weekly_date date;
 
 -- 原子获取下一订单序号
 create or replace function next_order_seq(p_owner bigint)

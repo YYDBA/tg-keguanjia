@@ -147,6 +147,45 @@ test('extractHints：识别金额与订单号', () => {
   assert.deepEqual(core.extractHints('随便聊聊'), {});
 });
 
+test('parseOrderNote：智能速记识别订单', () => {
+  const known = ['Lily', 'Tom'];
+  const n = core.parseOrderNote('Lily 订了 100 个陶瓷马克杯 USD 2400', known);
+  assert.equal(n.customer, 'Lily');
+  assert.equal(n.amountNum, 2400);
+  assert.equal(n.currency, 'USD');
+  assert.equal(n.matchedKnown, true);
+  assert.match(n.product, /陶瓷马克杯/);
+
+  // 未知客户 + 主语识别
+  const n2 = core.parseOrderNote('Jack 需要 500 件 T 恤 ¥8000', []);
+  assert.equal(n2.customer, 'Jack');
+  assert.equal(n2.currency, 'CNY');
+  assert.equal(n2.amountNum, 8000);
+
+  // 非订单（无金额 / 闲聊）→ null
+  assert.equal(core.parseOrderNote('杯子多少钱', known), null);
+  assert.equal(core.parseOrderNote('我打算买一批杯子', known), null);
+  assert.equal(core.parseOrderNote('', known), null);
+});
+
+test('nextOrderStatus：状态机下一步', () => {
+  assert.equal(core.nextOrderStatus('待付款'), '待发货');
+  assert.equal(core.nextOrderStatus('待发货'), '已发货');
+  assert.equal(core.nextOrderStatus('已发货'), '已完成');
+  assert.equal(core.nextOrderStatus('已完成'), null);
+  assert.equal(core.nextOrderStatus('已取消'), null);
+});
+
+test('buildOrderMessage：订单确认/发货通知英文模板', () => {
+  const o = { order_no: 'KJ-0001', customer_name: 'Lily', product: '陶瓷马克杯×120', amount: 2400, currency: 'USD' };
+  const confirm = core.buildOrderMessage(o, 'confirm');
+  assert.match(confirm, /Dear Lily/);
+  assert.match(confirm, /KJ-0001/);
+  assert.match(confirm, /2,400/);
+  const ship = core.buildOrderMessage(o, 'ship');
+  assert.match(ship, /has been shipped/);
+});
+
 test('escapeHtml 防注入', () => {
   assert.equal(core.escapeHtml('<b>&"'), '&lt;b&gt;&amp;&quot;');
 });

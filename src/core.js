@@ -26,6 +26,99 @@ const TRANSITIONS = {
 // 订单停留超过该天数进入风险提示
 const SLUG_DAYS = 7;
 
+// 货币符号 → 标准代码
+const CURRENCY_MAP = { $: 'USD', '¥': 'CNY', '€': 'EUR', '£': 'GBP' };
+
+// 智能速记常见误判词（"我打算买…"这类话里的主语不是客户名）
+const NOTE_STOPWORDS = [
+  '我', '你', '他', '她', '我们', '你们', '咱们', '这', '那', '今天', '明天', '昨天', '刚才',
+  '准备', '想', '请问', '帮忙', '帮', '能不能', '可以', '一个', '一批', '一些', '大概', '估计',
+];
+
+// 智能速记：宽松文本识别一笔订单。要求：含金额 + 含订单动作词 + 能定位到客户。
+function parseOrderNote(text, knownNames) {
+  const s = String(text || '').trim();
+  if (!s) return null;
+  const hasVerb = /(?:订|买|要|下单|采购|需要|拿|拍|order|po|purchase)/i.test(s);
+  if (!hasVerb) return null;
+  const m = s.match(/(?:USD|CNY|EUR|GBP|\$|¥|€|£)\s*([\d,]+(?:\.\d{1,2})?)/i);
+  if (!m) return null;
+  const sym = s.match(/(?:USD|CNY|EUR|GBP|\$|¥|€|£)/i)[0];
+  const currency = (CURRENCY_MAP[sym] || sym).toUpperCase();
+  const amountNum = Number(m[1].replace(/,/g, ''));
+  if (!Number.isFinite(amountNum) || amountNum <= 0) return null;
+
+  // 1) 优先匹配已有客户名
+  let customer = null;
+  let matchedKnown = false;
+  for (const n of knownNames || []) {
+    if (n && s.toLowerCase().includes(String(n).toLowerCase())) {
+      customer = String(n);
+      matchedKnown = true;
+      break;
+    }
+  }
+  // 2) 否则取"订/买/要"前的主语，过滤常见误判词
+  if (!customer) {
+    const who = s.match(/^([\u4e00-\u9fa5A-Za-z][\u4e00-\u9fa5A-Za-z0-9_.\-]{0,24})[\s:：]*(?:订|买|要|下单|采购|需要|拿|拍)/);
+    if (who && !NOTE_STOPWORDS.includes(who[1])) customer = who[1];
+  }
+  if (!customer) return null;
+
+  // 3) 产品 = 去掉客户名与金额后的剩余（再去掉动词/量词尾巴）
+  const escRe = customer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let rest = s.replace(new RegExp(escRe, 'i'), '').replace(m[0], '').trim();
+  const product =
+    rest
+      .replace(/^(?:订|买|要|下单|采购|需要|拿|拍)[了着]?/, '')
+      .replace(/[订买要下单采购需要拿了着拍]+$/, '')
+      .replace(/[，,。.；;\s]+$/, '')
+      .trim() || '订单';
+
+  return { customer, product, amount: m[0], currency, amountNum, matchedKnown };
+}
+
+// 状态机"下一步"（用于一键流转按钮）
+function nextOrderStatus(status) {
+  if (status === '待付款') return '待发货';
+  if (status === '待发货') return '已发货';
+  if (status === '已发货') return '已完成';
+  return null;
+}
+
+// 发给海外客户的订单确认 / 发货通知（英文模板）
+function buildOrderMessage(order, kind) {
+  const amt = fmtAmount(order.amount, order.currency);
+  const no = order.order_no;
+  const name = order.customer_name || 'Customer';
+  if (kind === 'ship') {
+    return [
+      `Dear ${name},`,
+      ``,
+      `Good news! Your order #${no} has been shipped.`,
+      ``,
+      `Product: ${order.product}`,
+      `Total: ${amt}`,
+      ``,
+      `We will share the tracking number as soon as it is available. Thank you for your trust!`,
+      ``,
+      `Best regards`,
+    ].join('\n');
+  }
+  return [
+    `Dear ${name},`,
+    ``,
+    `Thank you for your order #${no}.`,
+    ``,
+    `Product: ${order.product}`,
+    `Total: ${amt}`,
+    ``,
+    `We will process and ship your order as soon as possible. Please feel free to reply if you have any questions.`,
+    ``,
+    `Best regards`,
+  ].join('\n');
+}
+
 function planLimits(plan) {
   return PLANS[plan] || PLANS.free;
 }
@@ -211,4 +304,7 @@ module.exports = {
   generateCode,
   beijingParts,
   extractHints,
+  parseOrderNote,
+  nextOrderStatus,
+  buildOrderMessage,
 };

@@ -203,6 +203,22 @@ async function getOrder(ownerId, orderNo) {
   return data || null;
 }
 
+async function getOrderById(ownerId, id) {
+  const { data, error } = await getDb()
+    .from('orders')
+    .select('*')
+    .eq('id', id)
+    .eq('owner_id', ownerId)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+async function deleteOrder(ownerId, id) {
+  const { error } = await getDb().from('orders').delete().eq('id', id).eq('owner_id', ownerId);
+  if (error) throw error;
+}
+
 async function updateOrderStatus(ownerId, orderNo, status) {
   const { data, error } = await getDb()
     .from('orders')
@@ -471,6 +487,14 @@ async function markDigestSent(ownerId, dateStr) {
   if (error) throw error;
 }
 
+async function markWeeklySent(ownerId, dateStr) {
+  const { error } = await getDb()
+    .from('users')
+    .update({ last_weekly_date: dateStr })
+    .eq('telegram_id', ownerId);
+  if (error) throw error;
+}
+
 module.exports = {
   getDb,
   upsertUser,
@@ -488,6 +512,8 @@ module.exports = {
   nextOrderSeq,
   addOrder,
   getOrder,
+  getOrderById,
+  deleteOrder,
   updateOrderStatus,
   listOrders,
   orderStats,
@@ -510,4 +536,5 @@ module.exports = {
   listOrdersByCustomer,
   listAllUsers,
   markDigestSent,
+  markWeeklySent,
 };

@@ -114,6 +114,7 @@ function createBot() {
       `<b>📖 命令清单</b>\n\n` +
         `📥 <b>快捷操作</b>\n` +
         `转发客户消息给我 → 自动归档\n` +
+        `直接输入"Lily 订 100 个杯子 USD 2400" → 自动记单\n` +
         `<code>/customer 名字</code> 查看客户资料卡\n\n` +
         `👤 <b>客户</b>\n` +
         `<code>/customer 添加 名字 #标签 备注</code>\n` +
@@ -125,13 +126,14 @@ function createBot() {
         `<code>/order 添加 客户名 商品 金额</code>\n` +
         `<code>/order 状态 单号 新状态</code>\n` +
         `<code>/orders 状态</code> 按状态筛选\n` +
-        `<code>/order 单号</code> 订单详情\n\n` +
+        `<code>/order 单号</code> 订单详情（点按钮流转状态/生成确认消息）\n\n` +
         `⏰ <b>提醒</b>\n` +
         `<code>/remind 客户名 N分钟|N小时|N天|日期 内容</code>\n` +
         `<code>/reminders</code> 待办提醒\n\n` +
         `📊 <b>统计 / 导出</b>\n` +
         `<code>/stats</code> 数据看板\n` +
-        `<code>/export</code> 导出订单 CSV（Pro）\n\n` +
+        `<code>/export</code> 导出订单 CSV（Pro）\n` +
+        `每周一 09:00 自动推送经营周报\n\n` +
         `💰 <b>账户</b>\n` +
         `<code>/plan</code> 我的套餐\n` +
         `<code>/upgrade</code> 升级 Pro\n` +
@@ -208,6 +210,46 @@ function createBot() {
         [Markup.button.callback('📦 全部订单', 'ord:' + cust.id), Markup.button.callback('💬 全部消息', 'msg:' + cust.id)],
       ]),
     });
+  }
+
+  // ---- 智能速记：宽松文本识别到订单 → 自动建单 + 可撤销 ----
+  async function suggestOrder(ctx, note) {
+    try {
+      const user = await db.getUser(ctx.from.id);
+      const count = await db.countOrders(ctx.from.id);
+      const check = core.canCreate(user.plan, user.referral_bonus || 0, 'orders', count);
+      if (!check.ok) {
+        return ctx.reply(
+          `⚠️ 识别到一笔订单，但免费版最多 ${check.limit} 笔。\n<code>/upgrade</code> ｜ <code>/invite</code> 解锁`,
+          { parse_mode: 'HTML' }
+        );
+      }
+      let cust = await db.getCustomerByName(ctx.from.id, note.customer);
+      if (!cust) {
+        cust = await db.addCustomer(ctx.from.id, { name: note.customer, tags: [], note: '（智能速记自动创建）' });
+      }
+      const seq = await db.nextOrderSeq(ctx.from.id);
+      const orderNo = core.nextOrderNo(seq);
+      const o = await db.addOrder(ctx.from.id, {
+        orderNo,
+        customerName: cust.name,
+        product: note.product,
+        amount: note.amountNum,
+        currency: note.currency,
+      });
+      await ctx.reply(
+        `📝 <b>已自动记单</b>\n` +
+          `客户：${esc(cust.name)}\n` +
+          `商品：${esc(note.product)}\n` +
+          `金额：<b>${core.fmtAmount(o.amount, o.currency)}</b>\n` +
+          `单号：<code>${esc(orderNo)}</code>\n\n` +
+          `识别错了？点下方撤销。`,
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('↩️ 撤销这笔', 'ordundo:' + o.id)]]) }
+      );
+    } catch (e) {
+      console.error('suggestOrder', e);
+      await ctx.reply('识别订单失败：' + esc(e.message)).catch(() => {});
+    }
   }
 
   // ---- 客户 ----
@@ -403,6 +445,12 @@ function createBot() {
       // 订单详情
       const o = await db.getOrder(ctx.from.id, text);
       if (!o) return ctx.reply(`未找到订单 <code>${esc(text)}</code>`, { parse_mode: 'HTML' });
+      const kb = [];
+      const next = core.nextOrderStatus(o.status);
+      if (next) kb.push([Markup.button.callback(`✅ 流转为「${next}」`, `os:${o.id}:${next}`)]);
+      const msgRow = [Markup.button.callback('📨 订单确认', `om:${o.id}`)];
+      if (o.status === '已发货') msgRow.push(Markup.button.callback('📦 发货通知', `oms:${o.id}`));
+      kb.push(msgRow);
       await ctx.reply(
         `📦 <b>订单详情</b>\n` +
           `单号：<code>${esc(o.order_no)}</code>\n` +
@@ -411,7 +459,7 @@ function createBot() {
           `金额：<b>${core.fmtAmount(o.amount, o.currency)}</b>\n` +
           `状态：${esc(o.status)}\n` +
           `创建：${core.fmtDateTime(o.created_at)}`,
-        { parse_mode: 'HTML' }
+        { parse_mode: 'HTML', ...Markup.inlineKeyboard(kb) }
       );
     } catch (e) {
       console.error('/order', e);
@@ -784,12 +832,80 @@ function createBot() {
     }
   });
 
-  // 兜底：转发即归档 / 随手记
+  // ---- 智能速记撤销 ----
+  bot.action(/^ordundo:(\d+)$/, async (ctx) => {
+    try {
+      const id = Number(ctx.match[1]);
+      const o = await db.getOrderById(ctx.from.id, id);
+      if (!o) return ctx.answerCbQuery('订单不存在或已删除');
+      await db.deleteOrder(ctx.from.id, id);
+      await ctx.answerCbQuery('已撤销');
+      await ctx
+        .editMessageText(`↩️ 已撤销订单 <code>${esc(o.order_no)}</code>（客户资料保留）`, { parse_mode: 'HTML' })
+        .catch(() => {});
+    } catch (e) {
+      console.error('ordundo', e);
+      await ctx.answerCbQuery('撤销失败').catch(() => {});
+    }
+  });
+
+  // ---- 状态一键流转 ----
+  bot.action(/^os:(\d+):(.+)$/, async (ctx) => {
+    try {
+      const id = Number(ctx.match[1]);
+      const status = ctx.match[2];
+      const o = await db.getOrderById(ctx.from.id, id);
+      if (!o) return ctx.answerCbQuery('订单不存在');
+      if (!core.isAllowedTransition(o.status, status)) {
+        return ctx.answerCbQuery(`不能从「${o.status}」变更为「${status}」`);
+      }
+      const updated = await db.updateOrderStatus(ctx.from.id, o.order_no, status);
+      await ctx.answerCbQuery(`已更新为「${status}」`);
+      await ctx
+        .editMessageText(
+          `✅ <code>${esc(updated.order_no)}</code> 状态已更新：<b>${esc(updated.status)}</b>\n` +
+            `商品：${esc(updated.product)}｜${core.fmtAmount(updated.amount, updated.currency)}`,
+          { parse_mode: 'HTML' }
+        )
+        .catch(() => {});
+    } catch (e) {
+      console.error('os', e);
+      await ctx.answerCbQuery('操作失败').catch(() => {});
+    }
+  });
+
+  // ---- 生成订单确认 / 发货通知 ----
+  async function replyOrderMessage(ctx, id, kind) {
+    try {
+      const o = await db.getOrderById(ctx.from.id, id);
+      if (!o) return ctx.answerCbQuery('订单不存在');
+      await ctx.answerCbQuery();
+      const msg = core.buildOrderMessage(o, kind);
+      const label = kind === 'ship' ? '发货通知' : '订单确认消息';
+      await ctx.reply(`📨 <b>${label}</b>（复制以下内容发给客户）\n\n<pre>${esc(msg)}</pre>`, { parse_mode: 'HTML' });
+    } catch (e) {
+      console.error('om', e);
+      await ctx.answerCbQuery('生成失败').catch(() => {});
+    }
+  }
+  bot.action(/^om:(\d+)$/, (ctx) => replyOrderMessage(ctx, Number(ctx.match[1]), 'confirm'));
+  bot.action(/^oms:(\d+)$/, (ctx) => replyOrderMessage(ctx, Number(ctx.match[1]), 'ship'));
+
+  // 兜底：智能速记（非转发）→ 否则转发即归档 / 随手记
   bot.on('message', async (ctx) => {
     if (!ctx.chat || ctx.chat.type !== 'private' || !ctx.message) return;
     if (ctx.message.text && ctx.message.text.startsWith('/')) return; // 命令交给命令处理器
     const text = ctx.message.text || ctx.message.caption || '';
     const isForward = !!(ctx.message.forward_origin || ctx.message.forward_from || ctx.message.forward_from_chat);
+    if (!isForward && text) {
+      try {
+        const known = await db.listCustomers(ctx.from.id);
+        const note = core.parseOrderNote(text, known.map((c) => c.name));
+        if (note) return suggestOrder(ctx, note);
+      } catch (e) {
+        /* 解析失败退回普通记录 */
+      }
+    }
     return saveTimelineMessage(ctx, isForward ? 'forward' : 'note', text);
   });
 

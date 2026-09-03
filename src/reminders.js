@@ -46,7 +46,7 @@ async function scanAllDue(sender) {
   }
 }
 
-module.exports = { flushDueFor, scanAllDue, maybeSendDailyDigest };
+module.exports = { flushDueFor, scanAllDue, maybeSendDailyDigest, maybeSendWeeklyReport };
 
 // ---- 每日待办摘要：北京时间 09:00 后，当天未发过则推送一次 ----
 async function maybeSendDailyDigest(sender) {
@@ -95,4 +95,52 @@ async function buildDigest(ownerId) {
   if (parts.length === 1) return ''; // 无事可做
   parts.push(`\n\n/reminders 查看全部 ｜ /stats 数据看板`);
   return parts.join('');
+}
+
+// ---- 每周经营周报：北京时间周一 09:00 后推一次 ----
+async function maybeSendWeeklyReport(sender) {
+  const bj = core.beijingParts(new Date());
+  if (bj.hh * 60 + bj.mm < 9 * 60) return;
+  const weekday = new Date(Date.now() + 8 * 3600000).getUTCDay(); // 0=周日
+  if (weekday !== 1) return; // 仅周一
+  const users = await db.listAllUsers();
+  for (const u of users) {
+    if (u.last_weekly_date === bj.date) continue;
+    try {
+      const text = await buildWeekly(u.telegram_id);
+      if (!text) {
+        await db.markWeeklySent(u.telegram_id, bj.date);
+        continue;
+      }
+      await sender.sendMessage(Number(u.telegram_id), text, { parse_mode: 'HTML' });
+      await db.markWeeklySent(u.telegram_id, bj.date);
+    } catch (e) {
+      console.error('weekly fail', u.telegram_id, e.message);
+    }
+  }
+}
+
+async function buildWeekly(ownerId) {
+  const since = new Date(Date.now() - 7 * 86400000);
+  const [orders, customers] = await Promise.all([db.listOrders(ownerId), db.listCustomers(ownerId)]);
+  const week = orders.filter((o) => new Date(o.created_at) >= since);
+  const newCust = customers.filter((c) => new Date(c.created_at) >= since);
+  if (!week.length && !newCust.length) return '';
+  const esc = core.escapeHtml;
+  const byCur = {};
+  for (const o of week) {
+    const k = o.currency || 'USD';
+    byCur[k] = (byCur[k] || 0) + Number(o.amount || 0);
+  }
+  const amtLine = Object.entries(byCur)
+    .map(([c, v]) => `${c} ${Number(v).toLocaleString()}`)
+    .join('、');
+  const parts = [`📊 <b>上周经营周报</b>`];
+  parts.push(`📦 新订单 ${week.length} 笔｜金额 ${amtLine}`);
+  parts.push(`👤 新客户 ${newCust.length} 个`);
+  const pay = week.filter((o) => o.status === '待付款').length;
+  const ship = week.filter((o) => o.status === '待发货').length;
+  if (pay || ship) parts.push(`⏳ 进行中：待付款 ${pay}｜待发货 ${ship}`);
+  parts.push(`\n本周继续加油！<code>/stats</code> 看完整数据`);
+  return parts.join('\n');
 }
