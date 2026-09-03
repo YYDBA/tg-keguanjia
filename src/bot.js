@@ -13,7 +13,11 @@ const reminders = require('./reminders');
 const esc = core.escapeHtml;
 
 // 管理员（能生成兑换码）的 telegram_id，在 .env 里配置 OWNER_ID
-const OWNER_ID = process.env.OWNER_ID ? Number(process.env.OWNER_ID) : null;
+// 容错：去除引号/空格，避免在 Vercel 粘贴时多出字符导致 NaN
+const OWNER_ID = Number(String(process.env.OWNER_ID || '').trim().replace(/['"]/g, '')) || null;
+function isOwner(id) {
+  return !!OWNER_ID && Number(id) === OWNER_ID;
+}
 
 // 提取命令后的 payload
 function payload(ctx) {
@@ -639,7 +643,7 @@ function createBot() {
     try {
       const wallet = (await db.getSetting('wallet_address')) || process.env.TON_WALLET || '';
       if (!wallet) {
-        const isOwner = Number(ctx.from.id) === Number(process.env.OWNER_ID);
+        const isOwner = isOwner(ctx.from.id);
         await ctx.answerCbQuery(isOwner ? '请先发 /setwallet 配置收款钱包' : '收款方暂未开放支付').catch(() => {});
         return;
       }
@@ -667,7 +671,10 @@ function createBot() {
   // 管理员配置收款钱包
   bot.command('setwallet', async (ctx) => {
     try {
-      if (Number(ctx.from.id) !== Number(process.env.OWNER_ID)) {
+      if (!OWNER_ID) {
+        return ctx.reply('服务器未配置 OWNER_ID。请在 Vercel 环境变量添加 OWNER_ID=7252086367 后 Redeploy。');
+      }
+      if (!isOwner(ctx.from.id)) {
         return ctx.reply('仅管理员可配置收款钱包。');
       }
       const addr = payload(ctx).trim();
@@ -729,7 +736,8 @@ function createBot() {
   // 管理员生成兑换码：/gencode 30  → 30 天 Pro 兑换码
   bot.command('gencode', async (ctx) => {
     try {
-      if (!OWNER_ID || ctx.from.id !== OWNER_ID) {
+      if (!OWNER_ID) return ctx.reply('服务器未配置 OWNER_ID。请在 Vercel 环境变量添加后 Redeploy。').catch(() => {});
+      if (!isOwner(ctx.from.id)) {
         return ctx.reply('仅管理员可生成兑换码。').catch(() => {});
       }
       const days = Number(payload(ctx) || 30);
@@ -752,7 +760,8 @@ function createBot() {
   // 查看已生成的兑换码及使用状态：/codes
   bot.command('codes', async (ctx) => {
     try {
-      if (!OWNER_ID || ctx.from.id !== OWNER_ID) return ctx.reply('仅管理员可用。').catch(() => {});
+      if (!OWNER_ID) return ctx.reply('服务器未配置 OWNER_ID。请在 Vercel 环境变量添加后 Redeploy。').catch(() => {});
+      if (!isOwner(ctx.from.id)) return ctx.reply('仅管理员可用。').catch(() => {});
       const list = await db.listActivationCodes(ctx.from.id);
       if (!list.length) return ctx.reply('还没有生成过兑换码。用 <code>/gencode 30</code> 生成。', { parse_mode: 'HTML' });
       const lines = list.map((c) => {
