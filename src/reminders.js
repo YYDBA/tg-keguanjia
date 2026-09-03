@@ -2,7 +2,7 @@
 
 // ============================================================
 // TG客管家 · 到期提醒推送
-// sender: 具备 send(chatId, text) 能力的对象（bot.telegram / Telegram 实例）
+// sender: 具备 sendMessage(chatId, text) 能力的对象（bot.telegram / Telegram 实例）
 // ============================================================
 
 const db = require('./db');
@@ -12,7 +12,7 @@ async function flushDueFor(ownerId, sender) {
   const due = await db.scanDueForOwner(ownerId, new Date());
   for (const r of due) {
     try {
-      await sender.send(
+      await sender.sendMessage(
         Number(ownerId),
         `⏰ 跟进提醒（${r.customer_name || '客户'}）\n${r.content}`
       );
@@ -33,7 +33,7 @@ async function scanAllDue(sender) {
   for (const ownerId of Object.keys(byOwner)) {
     for (const r of byOwner[ownerId]) {
       try {
-        await sender.send(
+        await sender.sendMessage(
           Number(ownerId),
           `⏰ 跟进提醒（${r.customer_name || '客户'}）\n${r.content}`
         );

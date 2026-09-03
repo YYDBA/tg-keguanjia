@@ -381,7 +381,11 @@ function createBot() {
           { parse_mode: 'HTML' }
         );
       }
-      const r = await db.addReminder(ctx.from.id, parsed);
+      const r = await db.addReminder(ctx.from.id, {
+        customerName: parsed.customer,
+        content: parsed.content,
+        remindAt: parsed.remindAt,
+      });
       await ctx.reply(
         `⏰ 已设置提醒\n客户：${esc(parsed.customer)}\n内容：${esc(parsed.content)}\n时间：${core.fmtDateTime(r.remind_at)}`,
         { parse_mode: 'HTML' }
