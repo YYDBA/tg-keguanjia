@@ -123,7 +123,7 @@ function createBot() {
         `<code>/orders 状态</code> 按状态筛选\n` +
         `<code>/order 单号</code> 订单详情\n\n` +
         `⏰ <b>提醒</b>\n` +
-        `<code>/remind 客户名 N天|日期 内容</code>\n` +
+        `<code>/remind 客户名 N分钟|N小时|N天|日期 内容</code>\n` +
         `<code>/reminders</code> 待办提醒\n\n` +
         `📊 <b>统计 / 导出</b>\n` +
         `<code>/stats</code> 数据看板\n` +
@@ -368,7 +368,7 @@ function createBot() {
       const parsed = core.parseRemind('/remind ' + payload(ctx));
       if (!parsed) {
         return ctx.reply(
-          '用法：<code>/remind 客户名 N天|YYYY-MM-DD 内容</code>\n例：<code>/remind Lily 3天 催款</code>',
+          '用法：<code>/remind 客户名 N分钟|N小时|N天|YYYY-MM-DD 内容</code>\n例：<code>/remind Lily 3天 催款</code>',
           { parse_mode: 'HTML' }
         );
       }

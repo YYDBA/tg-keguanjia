@@ -94,17 +94,23 @@ function parseStatusChange(text) {
   return { orderNo: parts[0], status: parts.slice(1).join(' ') };
 }
 
-// ---- 提醒解析：/remind 客户名 N天|YYYY-MM-DD 内容 ----
+// ---- 提醒解析：/remind 客户名 N分钟|N小时|N天|YYYY-MM-DD 内容 ----
 function parseRemind(text) {
   let s = String(text || '').replace(/^\/remind\s+/i, '').trim();
-  const m = s.match(/^(\S+)\s+(?:(\d+)\s*天|(\d{4}-\d{2}-\d{2}))\s*([\s\S]*)$/);
+  const m = s.match(/^(\S+)\s+(?:(\d+)\s*分钟|(\d+)\s*小时|(\d+)\s*天|(\d{4}-\d{2}-\d{2}))\s*([\s\S]*)$/);
   if (!m) return null;
   const customer = m[1];
-  const days = m[2] ? Number(m[2]) : null;
-  const dateStr = m[3] || null;
-  const content = (m[4] || '').trim() || '跟进客户';
+  const minutes = m[2] ? Number(m[2]) : null;
+  const hours = m[3] ? Number(m[3]) : null;
+  const days = m[4] ? Number(m[4]) : null;
+  const dateStr = m[5] || null;
+  const content = (m[6] || '').trim() || '跟进客户';
   let remindAt;
-  if (days != null) {
+  if (minutes != null) {
+    remindAt = new Date(Date.now() + minutes * 60000);
+  } else if (hours != null) {
+    remindAt = new Date(Date.now() + hours * 3600000);
+  } else if (days != null) {
     remindAt = new Date(Date.now() + days * 86400000);
   } else {
     remindAt = new Date(dateStr + 'T00:00:00');

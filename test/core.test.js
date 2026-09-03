@@ -95,6 +95,19 @@ test('parseRemind：非法日期返回 null', () => {
   assert.equal(core.parseRemind('/remind'), null);
 });
 
+test('parseRemind：按分钟与小时', () => {
+  const before = Date.now();
+  const rm = core.parseRemind('/remind 测试 1分钟 x');
+  const rh = core.parseRemind('/remind 测试 2小时 x');
+  const after = Date.now();
+  assert.equal(rm.customer, '测试');
+  assert.equal(rm.content, 'x');
+  assert.ok(rm.remindAt.getTime() >= before + 0.9 * 60000);
+  assert.ok(rm.remindAt.getTime() <= after + 1.2 * 60000);
+  assert.ok(rh.remindAt.getTime() >= before + 1.9 * 3600000);
+  assert.ok(rh.remindAt.getTime() <= after + 2.2 * 3600000);
+});
+
 test('套餐额度与邀请奖励', () => {
   assert.deepEqual(core.planLimits('free'), { customers: 20, orders: 30, reminders: 5, exportCsv: false });
   assert.equal(core.effectiveLimit('free', 10, 'customers'), 30);
