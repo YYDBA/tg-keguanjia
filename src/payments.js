@@ -8,6 +8,17 @@
 
 const db = require('./db');
 const core = require('./core');
+let Address = null;
+try { ({ Address } = require('@ton/core')); } catch (e) { /* 可选依赖 */ }
+
+// 统一成友好可读地址（EQ/UQ 开头），对 Tonkeeper 链接更稳
+function toFriendly(addr) {
+  if (!addr) return addr;
+  try {
+    if (Address) return Address.parse(addr).toString();
+  } catch (e) { /* 保持原样 */ }
+  return addr;
+}
 
 const PRICES = {
   month: { stars: 300, label: 'TG客管家 Pro（月度）', months: 1 },
@@ -197,6 +208,57 @@ async function createPayRequest({ buyerTg, months, asset }) {
   return { req, wallet, plan, amount, memo };
 }
 
+// ---- 一键支付深链 ----
+// 通过 USDT 主合约的 get_wallet_address get 方法计算收款方的 USDT 子钱包地址
+// （纯计算，钱包未收过 USDT 也能返回正确地址；Tether 自定义实现不可用本地推导）
+async function getUsdtJettonWallet(owner) {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const res = await fetch(
+        `https://tonapi.io/v2/blockchain/accounts/${encodeURIComponent(USDT_MASTER)}/methods/get_wallet_address`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ args: [{ type: 'slice', value: owner }] }),
+          signal: ctrl.signal,
+        }
+      );
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const j = await res.json();
+      const addr = j && j.decoded && j.decoded.jetton_wallet_address;
+      return addr || null;
+    } finally {
+      clearTimeout(t);
+    }
+  } catch (e) {
+    console.error('getUsdtJettonWallet fail', e.message);
+    return null;
+  }
+}
+
+// 生成一键支付深链（Tonkeeper HTTPS 链接，可放按钮；另返回 ton:// 原文作兜底）
+// 返回 { url, raw }，失败时 url 为 null
+async function buildPayLink({ asset, wallet, amount, memo }) {
+  const text = encodeURIComponent(memo);
+  const friendlyWallet = toFriendly(wallet);
+  if (asset === 'TON') {
+    const nano = String(Math.round(amount * 1e9));
+    const url = `https://app.tonkeeper.com/transfer/${encodeURIComponent(friendlyWallet)}?amount=${nano}&text=${text}`;
+    const raw = `ton://transfer/${encodeURIComponent(friendlyWallet)}?amount=${nano}&text=${text}`;
+    return { url, raw };
+  }
+  // USDT：需要收款方 USDT 子钱包地址
+  const jw = await getUsdtJettonWallet(friendlyWallet);
+  if (!jw) return { url: null, raw: '' };
+  const nano = String(Math.round(amount * 1e6));
+  const url =
+    `https://app.tonkeeper.com/transfer/${encodeURIComponent(toFriendly(jw))}` +
+    `?jetton=${encodeURIComponent(USDT_MASTER)}&amount=${nano}&text=${text}`;
+  return { url, raw: '' };
+}
+
 module.exports = {
   PRICES,
   USDT_MASTER,
@@ -207,4 +269,6 @@ module.exports = {
   fetchIncomingUsdt,
   scanIncomingPayments,
   createPayRequest,
+  getUsdtJettonWallet,
+  buildPayLink,
 };

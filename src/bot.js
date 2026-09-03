@@ -650,17 +650,25 @@ function createBot() {
       await ctx.answerCbQuery('正在生成支付单…').catch(() => {});
       const r = await payments.createPayRequest({ buyerTg: ctx.from.id, months, asset });
       const plan = core.PAY_PLANS[months] || core.PAY_PLANS[1];
-      await ctx.reply(
+      const link = await payments.buildPayLink({ asset, wallet, amount: r.amount, memo: r.memo });
+      let txt =
         `💰 <b>Pro ${plan.months} 个月</b>\n` +
-          `应付：<b>${core.fmtAmount(r.amount, asset)}</b>\n\n` +
-          `1) 打开 TON 钱包（Tonkeeper / @wallet / Tonhub）\n` +
-          `2) 向收款地址转账 ${r.amount} ${asset}：\n` +
+        `应付：<b>${core.fmtAmount(r.amount, asset)}</b>\n\n` +
+        `1) 点下方按钮，钱包会<b>自动打开并预填金额与备注</b>\n` +
+        `2) 确认转账即可，到账后自动开通 Pro\n\n`;
+      if (!link.url) {
+        txt += `（自动打开失败，请手动转账：\n收款地址 <code>${esc(wallet)}</code>\n备注 <code>${esc(r.memo)}</code>）`;
+      } else {
+        txt += `· 钱包打不开时，可手动向收款地址转账，备注填 <code>${esc(r.memo)}</code>\n` +
           `<code>${esc(wallet)}</code>\n` +
-          `3) 附言/备注尽量填：<code>${esc(r.memo)}</code>\n` +
-          `4) 到账后自动开通，无需再找管理员\n\n` +
-          `（TON 链地址支持 USDT 与 TON）`,
-        { parse_mode: 'HTML' }
-      );
+          `（TON 链地址支持 USDT 与 TON）`;
+        if (link.raw) txt += `\n\n备用深链：<code>${esc(link.raw)}</code>`;
+      }
+      const kb = [];
+      if (link.url) {
+        kb.push([Markup.button.url(`💳 一键打开钱包支付 ${r.amount} ${asset}`, link.url)]);
+      }
+      await ctx.reply(txt, { parse_mode: 'HTML', ...(kb.length ? Markup.inlineKeyboard(kb) : {}) });
     } catch (e) {
       console.error('startPay', e);
       await ctx.reply('发起支付失败：' + esc(e.message)).catch(() => {});
